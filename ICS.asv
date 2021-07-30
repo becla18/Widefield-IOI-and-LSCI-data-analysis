@@ -1,0 +1,11 @@
+function I = ICS(A)
+%ICS computes the adjacency matrix from time series data.
+%   The edges of the adjacency matrix consist of the pearson correlation coefficients between the
+%   time series of the nodes in TimeSeries.
+%%% INPUT %%%
+% TimeSeries: n x m time series matrix, with n the number of time points and m the number of nodes.
+%%% OUTPUT %%%
+% A: m x m adjacency matrix
+A = corr(TimeSeries);
+end
+

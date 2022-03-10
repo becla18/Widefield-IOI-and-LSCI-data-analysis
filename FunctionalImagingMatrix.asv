@@ -1,0 +1,38 @@
+classdef FunctionalImagingData
+    %FUNCTIONALIMAGINGMATRIX Summary of this class goes here
+    %   The object must be created by specifying 2 arguments:
+    %   folderPath: string identifying path to the folder containing the raw data
+    %   channel: identif
+    
+    properties
+        channel %Green, red, blue or speckle
+        folderPath %Path to folder containing raw data
+        metaDataFile
+        nrows
+        ncols
+        nframes
+        freq
+    end
+    
+    methods
+        function obj = FunctionalImagingData(folderPath,channel)
+            %FUNCTIONALIMAGDATA Construct an instance of this class
+            %   Detailed explanation goes here
+            obj.channel = channel;
+            obj.folderPath = folderPath;
+            obj.metaDataFile = matfile([folderPath filesep 'Data_' channel '.mat']);
+            obj.nrows = datMatFile.datSize(1,1);
+            obj.ncols = datMatFile.datSize(1,2);
+            obj.nframes = datMatFile.datLength;
+            obj.freq = datMatFile.Freq;
+        end
+        
+        function movie = getMovie(obj)
+            %getMovie returns 3D movie matrix (nrows by ncols by nframes
+            mapFile = memmapfile(obj.metaDataFile.datFile,...
+                'Format',{'single',[double(obj.nrows) double(obj.ncols) double(obj.nframes)],'img'},'Repeat',1,'Writable',true);
+            movie = mapFile.Data.img;
+        end
+    end
+end
+

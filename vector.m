@@ -8,11 +8,11 @@ classdef vector
     end
     
     methods
-        function obj = vector(x,y)
+        function obj = vector(x)
             %UNTITLED2 Construct an instance of this class
             %   Detailed explanation goes here
-            obj.norm = (x^2+y^2)^0.5;
-            obj.data = [x,y];
+            obj.norm = (x(1)^2+x(2)^2)^0.5;
+            obj.data = [x(1),x(2)];
         end
         
         function outputArg = method1(obj,inputArg)

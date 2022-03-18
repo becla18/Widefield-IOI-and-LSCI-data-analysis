@@ -7,6 +7,7 @@ classdef webcamMovie < handle
         videoObject
         syncSignal
         frames
+        operationList
     end
     
     methods
@@ -27,12 +28,12 @@ classdef webcamMovie < handle
         function convertToGrayscaleFrames(obj)
             %Reads the video file and converts it to a 3D array of gray scale frames, stored under
             %the frames property.
-            frames = zeros(obj.videoObject.height,obj.videoObject.width,obj.videoObject.NumFrames);
+            grayFrames = zeros(obj.videoObject.height,obj.videoObject.width,obj.videoObject.NumFrames);
             for i = 1:obj.videoObject.NumFrames
                 frame = read(obj.videoObject,i);
-                frames(:,:,i) = double(rgb2gray(frame)); %Convert to proper gray scale format
+                grayFrames(:,:,i) = double(rgb2gray(frame)); %Convert to proper gray scale format
             end
-            obj.frames = frames;
+            obj.frames = grayFrames;
         end
         function signal = extractROIsignal(obj,mask)
             %Extract the average signal from the ROI specified a binary mask.
@@ -58,6 +59,15 @@ classdef webcamMovie < handle
             diffSyncSignal = [0 diff(obj.syncSignal)]; %a zero is added so that the trigger signal is the same length as the original signal, 
             LEDtrigs = diffSyncSignal>threshold;
             signal = initialSignal(LEDtrigs);
+        end
+        function zscore(obj)
+            %Converts each pixel into its z-score
+            if any(strcmp(obj.operationList,'zscore'))
+                disp('Operation has already been performed');
+                return
+            end
+            obj.frames = (obj.frames-mean(obj.frames,3))./std(obj.frames,0,3);
+            obj.operationList = [obj.operationList 'zscore'];
         end
     end
 end

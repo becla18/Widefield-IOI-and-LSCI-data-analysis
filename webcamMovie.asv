@@ -1,4 +1,4 @@
-classdef webcamMovie < handle
+classdef webcamMovie < I
     %UNTITLED Summary of this class goes here
     %   Detailed explanation goes here
     
@@ -24,9 +24,16 @@ classdef webcamMovie < handle
             end
         end
         
-        function grayscaleFrames = convertToGrayscaleFrames(obj)
+        function convertToGrayscaleFrames(obj)
             %Reads the video file and converts it to a 3D array of gray scale frames, stored under
             %the frames property.
+            grayFrames = zeros(obj.videoObject.height,obj.videoObject.width,obj.videoObject.NumFrames);
+            for i = 1:obj.videoObject.NumFrames
+                frame = read(obj.videoObject,i);
+                grayFrames(:,:,i) = double(rgb2gray(frame)); %Convert to proper gray scale format
+            end
+            obj.frames = grayFrames;
+        end
         function signal = extractROIsignal(obj,mask)
             %Extract the average signal from the ROI specified a binary mask.
             signal = zeros(obj.videoObject.NumFrames,1);
@@ -47,7 +54,7 @@ classdef webcamMovie < handle
                 disp('Specify path to synchronization signal in object definition');
                 return
             end
-            threshold = 4; %voltage threshold to consider the LED ON
+            threshold = 4.5; %voltage threshold to consider the LED ON
             diffSyncSignal = [0 diff(obj.syncSignal)]; %a zero is added so that the trigger signal is the same length as the original signal, 
             LEDtrigs = diffSyncSignal>threshold;
             signal = initialSignal(LEDtrigs);

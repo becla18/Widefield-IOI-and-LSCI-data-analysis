@@ -153,7 +153,8 @@ classdef ImagingMovie < handle
                 disp(['Cut off frequency did not respect Nyquist criteria and was reduced to ' num2str(obj.freq) 'Hz']);
             end
             signalMatrix = convertTo2DMatrix(obj);
-            filteredMatrix = bandpass(signalMatrix,[cutOnFreq,cutOffFreq],obj.freq);
+            [b,a] = cheby1(1,3,[cutOnFreq cutOffFreq]/2.5);
+            filteredMatrix = filtfilt(b,a,double(signalMatrix)); %same method as Cramer 2019, NeuroImage
             %Convert back to 3D
             reshapedMatrix = reshape(filteredMatrix,obj.nframes,obj.nrows,obj.ncols);
             obj.data = permute(reshapedMatrix,[2,3,1]);

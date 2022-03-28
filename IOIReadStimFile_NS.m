@@ -30,7 +30,7 @@ else
     end
 end
 clear tmp flip_tmp ind data;
-CamTrig = find((AnalogIN(1:(end-1),1) < 2.5) & (AnalogIN(2:end,1) >= 2.5))+1;
+CamTrig = find((AnalogIN(1:(end-1),1) < 2.5) & (AnalogIN(2:end,1) >= 4.5))+1;
 
 if( ~bSlave )
     sChan = 2;

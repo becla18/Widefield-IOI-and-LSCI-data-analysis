@@ -83,7 +83,7 @@ classdef ImagingMovie < handle
             %translate can be specified as a nframes by 2 array, with the first column representing
             %x translations and the second y translations.
             %Frames from the speckle channel are corrected by first applying a 3x3 std kernel to
-            %reveal vessel structure (Miao et al., 2010, IEEE Trans. Biomed eng.). 
+            %reveal vessel structure (Miao et al., 2010, IEEE Trans. Biomed eng.) if they have not already been transformed to speckle contrast. 
             if any(strcmp(obj.operationList,'correctMotion'))
                 disp('Operation has already been performed');
                 return
@@ -91,7 +91,7 @@ classdef ImagingMovie < handle
             if ~exist('transform','var')
                 translate = [];
             end
-            if strcmp(obj.channel,'speckle')
+            if strcmp(obj.channel,'speckle') && ~any(strcmp(obj.operationList,'convertToSpeckleContrast'))
                 movingImages = zeros(size(obj.data));
                 for i = 1:obj.nframes
                     movingImages(:,:,i) = stdfilt(obj.data(:,:,i),ones(3));
@@ -176,8 +176,13 @@ classdef ImagingMovie < handle
             obj.operationList = [obj.operationList 'convertToSpeckleContrast'];
         end
         function averageResponse = averageResponses(obj,preStim,postStim,indexes)
-            %UNTITLED Summary of this function goes here
-            %   Detailed explanation goes here
+            %AVERAGERESPONSE returns a movie of the average peri-stimuli signal. The output is also
+            %an ImagingMovie object.
+            %   The movie object must have a defined stim property
+            %   preStim: pre-stimulus period (in s). For each event, the signal is normalized
+            %   relative to the average signal during this period.
+            %   postStim: Period (s) to consider after the stimulus ends.
+            %   indexes: array of the index numbers of stim events to consider (default: all stims).
             stimOnsetsInd = find(diff(obj.stim)==1)+1;
             stimOffsetsInd = find(diff(obj.stim)==-1);
             nbStim = length(stimOnsetsInd);
@@ -190,10 +195,42 @@ classdef ImagingMovie < handle
             averageResponse = zeros(obj.nrows,obj.ncols,windowLength);
             for i = 1:length(indexes)
                 baseline = mean(obj.data(:,:,stimOnsetsInd(i)-round(preStim*obj.freq):stimOnsetsInd(i)-1),3);
-                averageResponse = averageResponse+obj.data(:,:,stimOnsetsInd(i)-round(preStim*obj.freq):stimOffsetsInd(i)+round(postStim*obj.freq))./baseline;
+                windowLength_stim = length(obj.stim(stimOnsetsInd(i)-round(preStim*obj.freq):stimOffsetsInd(i)+round(postStim*obj.freq)));
+                if windowLength_stim == windowLength-1 %Catch error of variations in length of the stim period
+                    windowLength_stim = windowLength_stim + 1;
+                elseif windowLength_stim == windowLength+1
+                    windowLength_stim = windowLength_stim - 1;
+                end
+                windowStart_ind = stimOnsetsInd(i)-round(preStim*obj.freq);
+                averageResponse = averageResponse+obj.data(:,:,windowStart_ind:windowStart_ind+windowLength_stim-1)./baseline;
             end
             averageResponse = averageResponse/length(indexes);
+            averageResponse = ImagingMovie(obj.path,obj.channel,averageResponse);
         end
+        function timeSeries = extractTimeSeries(obj,mask)
+            %EXTRACTTIMESERIES extracts the average time series from all pixels specified by the
+            %binary mask "mask", returned as a column vector.
+            timeSeries = zeros(obj.nframes,1);
+            for i = 1:obj.nframes
+                frame = obj.data(:,:,i);
+                pixelValues = frame(logical(mask(:)));
+                timeSeries(i) = mean(pixelValues);
+            end
+        end
+        function binFrames(obj)
+            %BINFRAMES performs 2x2 binning of all object images
+            binnedFrames = zeros(round(obj.nrows/2),round(obj.ncols/2),obj.nframes);
+            for i = 1:obj.nframes
+                frame = obj.data(:,:,1);
+                binnedFrames(:,:,i) = interp2(double(frame), double(1:2:obj.ncols)',...
+                   double(1:2:obj.nrows));
+            end
+            obj.data = binnedFrames;
+            obj.nrows = size(binnedFrames,1);
+            obj.ncols = size(binnedFrames,2);
+            obj.operationList = [obj.operationList 'binFrames'];
+        end
+            
     end
     
 end

@@ -1,26 +1,28 @@
 %Use this script to perform ICA on a single imaging run
 % %% Pre-processing
-dataFolderPath = 'E:\Data Jeremie\Bilateral Stim and Resting State dataset\M3\M3_CIB_N30';
+dataFolderPath = 'E:\Data Jeremie\Bilateral Stim and Resting State dataset\M8\M8_rs_05iso_15min';
 greenMovie = ImagingMovie(dataFolderPath,'green');
 greenMovie.correctMotion;
 redMovie = ImagingMovie(dataFolderPath,'red');
 redMovie.correctMotion;
 speckleContrastMovie = ImagingMovie(dataFolderPath,'speckle');
+speckleContrastMovie.convertToSpeckleContrast(5);
+speckleContrastMovie.binFrames;
 speckleContrastMovie.correctMotion;
-% greenMovie.normalizeByMean;
-% redMovie.normalizeByMean;
+greenMovie.normalizeByMean;
+redMovie.normalizeByMean;
 %%
 [HbOMovie, HbRMovie] = convertToHb(greenMovie.data,redMovie.data(:,:,1:end-1));
 speckleContrastMovie.convertToSpeckleContrast(5);
 HbOMovie = ImagingMovie(dataFolderPath,'HbO',HbOMovie);
 HbRMovie = ImagingMovie(dataFolderPath,'HbR',HbRMovie);
 clear greenMovie redMovie
-HbOMovie.gaussianFilter(1);
-HbRMovie.gaussianFilter(1);
-speckleContrastMovie.gaussianFilter(1);
-HbOMovie.zscore;
-HbRMovie.zscore;
-speckleContrastMovie.zscore;
+%HbOMovie.gaussianFilter(1);
+%HbRMovie.gaussianFilter(1);
+%speckleContrastMovie.gaussianFilter(1);
+%HbOMovie.zscore;
+%HbRMovie.zscore;
+%speckleContrastMovie.zscore;
 mask = HbOMovie.createMask;
 if speckleContrastMovie.nrows ~= HbOMovie.nrows
     maskSC = imresize(mask,[speckleContrastMovie.nrows speckleContrastMovie.ncols]);
@@ -37,10 +39,10 @@ HbOMatrix = HbOMovie.convertTo2DMatrix(mask);
 HbRMatrix = HbRMovie.convertTo2DMatrix(mask);
 SCMatrix = speckleContrastMovie.convertTo2DMatrix(maskSC);
 %% ICA
-% HbOMatrix = gsr(HbOMatrix);
-% HbRMatrix = gsr(HbRMatrix);
+HbOMatrix = gsr(HbOMatrix);
+HbRMatrix = gsr(HbRMatrix);
 % SCMatrix = gsr(SCMatrix);
-n = 10;
+n = 20;
 [componentsHbO, wHbO, tHbO, muHbO] = fastICA(HbOMatrix,n,'negentropy');
 [componentsHbR, wHbR, tHbR, muHbR] = fastICA(HbRMatrix,n,'negentropy');
 [componentsSC, wSC, tSC, muSC] = fastICA(SCMatrix,n,'negentropy');

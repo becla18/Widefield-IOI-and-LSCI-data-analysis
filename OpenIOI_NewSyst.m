@@ -549,7 +549,6 @@ if( bFluo ) %Data_speckle filling
                 'Offset', (ImAddressBook(indF,2)-1)*SizeImage,...
                 'Format', frameFormat, 'repeat', 1);
         end
-        end
         
         %No Binning for speckle?%%
 %         if( Binning )
@@ -563,11 +562,12 @@ if( bFluo ) %Data_speckle filling
         fwrite(fidS, Images, 'single');
         
         if( bStim )
-            fSpeckle.Stim(cSpeckle,1) = Stim(indF);
+            fSpeckle.Stim(cSpeckle,1) = Stim(indF+2);
         else
             fSpeckle.Stim(cSpeckle,1) = 0;
         end
         cSpeckle = cSpeckle + 1;
+        end
         
         if( indI >= PrcTag(indT) )
             P = round((100*PrcTag(indT))/length(tags));
@@ -627,7 +627,6 @@ if( bRed )
                 'Offset', (ImAddressBook(indF,2)-1)*SizeImage,...
                 'Format', frameFormat, 'repeat', 1);
         end
-        end
         
         if( Binning )
            img = interp2(double(dat.Data.imgj), (1:2:size(dat.Data.imgj,2))',...
@@ -638,12 +637,21 @@ if( bRed )
         Images = img;
         fwrite(fidR, Images, 'single');
         
+        %The +2 was added to the following line because there seems to be a bug causing the 1rst two registered images to be badly indexed
+        %and relegated to the last two rows of ImAddressBook as two rows of zeros. Because of this,
+        %the first image of the sequence to be considered is the 3rd, but before this, there is a
+        %dark frame and a speckle frame if we look at the raw data (see data variable at line ~154).
+        %As such, the stim value corresponding to the first red frame is the one corresponding to
+        %the 3rd registered image, not the 1rst one. This correction was also made for each channel.
+        %The "end" of the "if ImAddressBook(indF,1)>0" clause was also moved down so that no additionnal
+        %frames are written (copied) when the last two rows of ImAddressBook are reached.
         if( bStim )
-            fRed.Stim(cRed,1) = Stim(indF);
+            fRed.Stim(cRed,1) = Stim(indF+2);
         else
             fRed.Stim(cRed,1) = 0;
         end
         cRed = cRed + 1;
+        end
         
         if( indI >= PrcTag(indT) )
             P = round((100*PrcTag(indT))/length(tags));
@@ -697,7 +705,6 @@ if( bYellow )
                 'Offset', (ImAddressBook(indF,2)-1)*SizeImage,...
                 'Format', frameFormat, 'repeat', 1);
         end
-        end
                
         if( Binning )
            img = interp2(double(dat.Data.imgj), (1:2:size(dat.Data.imgj,2))',...
@@ -709,11 +716,12 @@ if( bYellow )
         fwrite(fidY, Images, 'single');
         
         if( bStim )
-            fYellow.Stim(cYellow,1) = Stim(indF);
+            fYellow.Stim(cYellow,1) = Stim(indF+2);
         else
             fYellow.Stim(cYellow,1) = 0;
         end
         cYellow = cYellow + 1;
+        end
         
         if( indI >= PrcTag(indT) )
             P = round((100*PrcTag(indT))/length(tags));
@@ -777,7 +785,6 @@ if( bGreen )
                 'Offset', (ImAddressBook(indF,2)-1)*SizeImage,...
                 'Format', frameFormat, 'repeat', 1);
         end
-        end
        
         if( Binning )
            img = interp2(double(dat.Data.imgj), (1:2:size(dat.Data.imgj,2))',...
@@ -796,11 +803,12 @@ if( bGreen )
         fwrite(fidG, Images, 'single');     
         
         if( bStim )
-            fGreen.Stim(cGreen,1) = Stim(indF);
+            fGreen.Stim(cGreen,1) = Stim(indF+2);
         else
             fGreen.Stim(cGreen,1) = 0;
         end
         cGreen = cGreen + 1;
+        end
         
         if( indI >= PrcTag(indT) )
             P = round((100*PrcTag(indT))/length(tags));

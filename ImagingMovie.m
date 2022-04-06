@@ -11,6 +11,8 @@ classdef ImagingMovie < handle
         freq
         data %data in 3D format (nrows by ncols by nframes)
         stim %stim data
+        stimLength
+        nstims
         userSpecified
         processedData
         operationList = {} %List of operations that have already been performed
@@ -40,6 +42,11 @@ classdef ImagingMovie < handle
             obj.nframes = obj.metaDataFile.datLength;
             obj.freq = obj.metaDataFile.Freq;
             obj.stim = obj.metaDataFile.Stim;
+            stimParamsFile = matfile([folderPath filesep 'StimParameters.mat']);
+            if ~isempty(find(obj.stim))
+                obj.stimLength = stimParamsFile.StimLength;
+                obj.nstims = stimParamsFile.NbStim;
+            end
             if nargin == 2
                 obj.data = getUnprocessedMovie(obj);
                 obj.userSpecified = 0;
@@ -146,7 +153,9 @@ classdef ImagingMovie < handle
             end
             obj.operationList = [obj.operationList 'gaussianFilter'];
         end
-        function bandPassFilter(obj,cutOnFreq,cutOffFreq)
+        function bandPassFilter(obj,cutOnFreq,cutOffFreq,mask)
+            %Applies bandpass filter to movie. Can specify binary mask to limit filtering to a given
+            %region.
             if any(strcmp(obj.operationList,'bandPassFilter'))
                 disp('Operation has already been performed');
                 return
@@ -155,13 +164,27 @@ classdef ImagingMovie < handle
                 cutOffFreq = obj.freq/2;
                 disp(['Cut off frequency did not respect Nyquist criteria and was reduced to ' num2str(obj.freq) 'Hz']);
             end
-            signalMatrix = convertTo2DMatrix(obj);
+            if nargin == 3
+                mask = ones(obj.nrows,obj.ncols);
+            end
+            signalMatrix = convertTo2DMatrix(obj,mask);
             [b,a] = cheby1(1,3,[cutOnFreq cutOffFreq]/obj.freq);
             filteredMatrix = filtfilt(b,a,double(signalMatrix)); %same method as Cramer 2019, NeuroImage
             %Convert back to 3D
-            reshapedMatrix = reshape(filteredMatrix,obj.nframes,obj.nrows,obj.ncols);
-            obj.data = permute(reshapedMatrix,[2,3,1]);
+            obj.data = mapMatrixToMask(filteredMatrix,mask);
+%             reshapedMatrix = reshape(filteredMatrix,obj.nframes,obj.nrows,obj.ncols);
+%             obj.data = permute(reshapedMatrix,[2,3,1]);
             obj.operationList = [obj.operationList 'bandPassFilter'];
+        end
+        function detrendMovie(obj,mask)
+            %Removes temporal linear trend from movie. Can specify binary mask to limit detrending to a given
+            %region.
+            if nargin == 1
+                mask = ones(obj.nrows,obj.ncols);
+            end
+            signalMatrix = convertTo2DMatrix(obj,mask);
+            detrendedMatrix = detrend(signalMatrix);
+            obj.data = mapMatrixToMask(detrendedMatrix,mask);
         end
         function convertToSpeckleContrast(obj,kernelSize)
             if any(strcmp(obj.operationList,'convertToSpeckleContrast'))
@@ -223,7 +246,7 @@ classdef ImagingMovie < handle
             %BINFRAMES performs 2x2 binning of all object images
             binnedFrames = zeros(round(obj.nrows/2),round(obj.ncols/2),obj.nframes);
             for i = 1:obj.nframes
-                frame = obj.data(:,:,1);
+                frame = obj.data(:,:,i);
                 binnedFrames(:,:,i) = interp2(double(frame), double(1:2:obj.ncols)',...
                    double(1:2:obj.nrows));
             end

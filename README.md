@@ -1,2 +1,2 @@
 # Connectivity-activation-mapping
- Create functional connectivity and activation maps for IOI/LSCI experiments
+ Software to analyse widefield imaging data for IOI and LSCI 

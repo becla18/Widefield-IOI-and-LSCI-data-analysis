@@ -54,6 +54,8 @@ classdef ImagingMovie < handle
                 obj.data = movie;
                 obj.nframes = size(movie,3);
                 obj.userSpecified = 1;
+                obj.nrows = size(movie,1);
+                obj.ncols = size(movie,2);
             end               
         end
         

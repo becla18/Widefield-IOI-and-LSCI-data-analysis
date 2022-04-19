@@ -22,4 +22,3 @@ for i = 2:nframes
     ax.Visible = 'off';
     pause(0.0001);
 end
-

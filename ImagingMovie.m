@@ -11,6 +11,8 @@ classdef ImagingMovie < handle
         freq
         data %data in 3D format (nrows by ncols by nframes)
         stim %stim data
+        stimLength
+        nstims
         userSpecified
         processedData
         operationList = {} %List of operations that have already been performed
@@ -40,12 +42,20 @@ classdef ImagingMovie < handle
             obj.nframes = obj.metaDataFile.datLength;
             obj.freq = obj.metaDataFile.Freq;
             obj.stim = obj.metaDataFile.Stim;
+            stimParamsFile = matfile([folderPath filesep 'StimParameters.mat']);
+            if ~isempty(find(obj.stim))
+                obj.stimLength = stimParamsFile.StimLength;
+                obj.nstims = stimParamsFile.NbStim;
+            end
             if nargin == 2
                 obj.data = getUnprocessedMovie(obj);
                 obj.userSpecified = 0;
             elseif nargin == 3
                 obj.data = movie;
+                obj.nframes = size(movie,3);
                 obj.userSpecified = 1;
+                obj.nrows = size(movie,1);
+                obj.ncols = size(movie,2);
             end               
         end
         
@@ -83,7 +93,7 @@ classdef ImagingMovie < handle
             %translate can be specified as a nframes by 2 array, with the first column representing
             %x translations and the second y translations.
             %Frames from the speckle channel are corrected by first applying a 3x3 std kernel to
-            %reveal vessel structure (Miao et al., 2010, IEEE Trans. Biomed eng.). 
+            %reveal vessel structure (Miao et al., 2010, IEEE Trans. Biomed eng.) if they have not already been transformed to speckle contrast. 
             if any(strcmp(obj.operationList,'correctMotion'))
                 disp('Operation has already been performed');
                 return
@@ -91,7 +101,7 @@ classdef ImagingMovie < handle
             if ~exist('transform','var')
                 translate = [];
             end
-            if strcmp(obj.channel,'speckle')
+            if strcmp(obj.channel,'speckle') && ~any(strcmp(obj.operationList,'convertToSpeckleContrast'))
                 movingImages = zeros(size(obj.data));
                 for i = 1:obj.nframes
                     movingImages(:,:,i) = stdfilt(obj.data(:,:,i),ones(3));
@@ -145,7 +155,9 @@ classdef ImagingMovie < handle
             end
             obj.operationList = [obj.operationList 'gaussianFilter'];
         end
-        function bandPassFilter(obj,cutOnFreq,cutOffFreq)
+        function bandPassFilter(obj,cutOnFreq,cutOffFreq,mask)
+            %Applies bandpass filter to movie. Can specify binary mask to limit filtering to a given
+            %region.
             if any(strcmp(obj.operationList,'bandPassFilter'))
                 disp('Operation has already been performed');
                 return
@@ -154,13 +166,27 @@ classdef ImagingMovie < handle
                 cutOffFreq = obj.freq/2;
                 disp(['Cut off frequency did not respect Nyquist criteria and was reduced to ' num2str(obj.freq) 'Hz']);
             end
-            signalMatrix = convertTo2DMatrix(obj);
+            if nargin == 3
+                mask = ones(obj.nrows,obj.ncols);
+            end
+            signalMatrix = convertTo2DMatrix(obj,mask);
             [b,a] = cheby1(1,3,[cutOnFreq cutOffFreq]/obj.freq);
             filteredMatrix = filtfilt(b,a,double(signalMatrix)); %same method as Cramer 2019, NeuroImage
             %Convert back to 3D
-            reshapedMatrix = reshape(filteredMatrix,obj.nframes,obj.nrows,obj.ncols);
-            obj.data = permute(reshapedMatrix,[2,3,1]);
+            obj.data = mapMatrixToMask(filteredMatrix,mask);
+%             reshapedMatrix = reshape(filteredMatrix,obj.nframes,obj.nrows,obj.ncols);
+%             obj.data = permute(reshapedMatrix,[2,3,1]);
             obj.operationList = [obj.operationList 'bandPassFilter'];
+        end
+        function detrendMovie(obj,mask)
+            %Removes temporal linear trend from movie. Can specify binary mask to limit detrending to a given
+            %region.
+            if nargin == 1
+                mask = ones(obj.nrows,obj.ncols);
+            end
+            signalMatrix = convertTo2DMatrix(obj,mask);
+            detrendedMatrix = detrend(signalMatrix);
+            obj.data = mapMatrixToMask(detrendedMatrix,mask);
         end
         function convertToSpeckleContrast(obj,kernelSize)
             if any(strcmp(obj.operationList,'convertToSpeckleContrast'))
@@ -176,8 +202,13 @@ classdef ImagingMovie < handle
             obj.operationList = [obj.operationList 'convertToSpeckleContrast'];
         end
         function averageResponse = averageResponses(obj,preStim,postStim,indexes)
-            %UNTITLED Summary of this function goes here
-            %   Detailed explanation goes here
+            %AVERAGERESPONSE returns a movie of the average peri-stimuli signal. The output is also
+            %an ImagingMovie object.
+            %   The movie object must have a defined stim property
+            %   preStim: pre-stimulus period (in s). For each event, the signal is normalized
+            %   relative to the average signal during this period.
+            %   postStim: Period (s) to consider after the stimulus ends.
+            %   indexes: array of the index numbers of stim events to consider (default: all stims).
             stimOnsetsInd = find(diff(obj.stim)==1)+1;
             stimOffsetsInd = find(diff(obj.stim)==-1);
             nbStim = length(stimOnsetsInd);
@@ -190,10 +221,43 @@ classdef ImagingMovie < handle
             averageResponse = zeros(obj.nrows,obj.ncols,windowLength);
             for i = 1:length(indexes)
                 baseline = mean(obj.data(:,:,stimOnsetsInd(i)-round(preStim*obj.freq):stimOnsetsInd(i)-1),3);
-                averageResponse = averageResponse+obj.data(:,:,stimOnsetsInd(i)-round(preStim*obj.freq):stimOffsetsInd(i)+round(postStim*obj.freq))./baseline;
+                windowLength_stim = length(obj.stim(stimOnsetsInd(i)-round(preStim*obj.freq):stimOffsetsInd(i)+round(postStim*obj.freq)));
+                if windowLength_stim == windowLength-1 %Catch error of variations in length of the stim period
+                    windowLength_stim = windowLength_stim + 1;
+                elseif windowLength_stim == windowLength+1
+                    windowLength_stim = windowLength_stim - 1;
+                end
+                windowStart_ind = stimOnsetsInd(i)-round(preStim*obj.freq);
+                averageResponse = averageResponse+obj.data(:,:,windowStart_ind:windowStart_ind+windowLength_stim-1)./baseline;
             end
             averageResponse = averageResponse/length(indexes);
+            averageResponse = ImagingMovie(obj.folderPath,obj.channel,averageResponse);
+            averageResponse.nframes = windowLength;
         end
+        function timeSeries = extractTimeSeries(obj,mask)
+            %EXTRACTTIMESERIES extracts the average time series from all pixels specified by the
+            %binary mask "mask", returned as a column vector.
+            timeSeries = zeros(obj.nframes,1);
+            for i = 1:obj.nframes
+                frame = obj.data(:,:,i);
+                pixelValues = frame(logical(mask(:)));
+                timeSeries(i) = mean(pixelValues);
+            end
+        end
+        function binFrames(obj)
+            %BINFRAMES performs 2x2 binning of all object images
+            binnedFrames = zeros(round(obj.nrows/2),round(obj.ncols/2),obj.nframes);
+            for i = 1:obj.nframes
+                frame = obj.data(:,:,i);
+                binnedFrames(:,:,i) = interp2(double(frame), double(1:2:obj.ncols)',...
+                   double(1:2:obj.nrows));
+            end
+            obj.data = binnedFrames;
+            obj.nrows = size(binnedFrames,1);
+            obj.ncols = size(binnedFrames,2);
+            obj.operationList = [obj.operationList 'binFrames'];
+        end
+            
     end
     
 end
